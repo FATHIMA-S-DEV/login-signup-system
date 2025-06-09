@@ -7,7 +7,7 @@ A responsive and reusable authentication interface built with React, TypeScript,
 🚀 Features
 🔄 Toggle between Sign In and Sign Up forms
 
-⚡ Fast development with Vite + React + TypeScript
+⚡ Fast development with React + TypeScript
 
 🎨 Beautiful UI with Tailwind CSS
 
