@@ -17,7 +17,7 @@ A responsive and reusable authentication interface built with React, TypeScript,
 
 🛠️ Getting Started
 1. Clone the Repository
-git clone https://github.com/your-username/login-signup-system.git
+git clone https://github.com/FATHIMA-S-DEV/login-signup-system/tree/master
 cd login-signup-system
 2. Install Dependencies
 npm install
