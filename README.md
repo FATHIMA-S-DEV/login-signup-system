@@ -2,7 +2,8 @@
 
 A responsive and reusable authentication interface built with React, TypeScript, and Tailwind CSS. This system enables users to switch between Sign In and Sign Up views seamlessly within a shared layout.
 
-![Screenshot (400)](https://github.com/user-attachments/assets/361c33e0-382f-4f00-b436-1cd3f4eef99e)
+![Revolutie Preview](https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&dpr=2)
+
 
 
 ## 🚀 Live Demo
@@ -30,7 +31,10 @@ npm run dev
 
 ## 📸 Screenshots
 
-![Screenshot (401)](https://github.com/user-attachments/assets/7d3388f3-265f-4cba-b68f-765349bf0ed4)
+![Screenshot (400)](https://github.com/user-attachments/assets/361c33e0-382f-4f00-b436-1cd3f4eef99e)
+
+
+## ![Screenshot (401)](https://github.com/user-attachments/assets/7d3388f3-265f-4cba-b68f-765349bf0ed4)
 
 
 
