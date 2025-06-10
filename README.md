@@ -19,7 +19,7 @@ A responsive and reusable authentication interface built with React, TypeScript,
 
 📱 Fully responsive across devices
 
-🛠️ Getting Started
+## 🛠️ Getting Started
 1. Clone the Repository
 git clone https://github.com/FATHIMA-S-DEV/login-signup-system/tree/master
 cd login-signup-system
@@ -28,16 +28,17 @@ npm install
 3. Start the Development Server
 npm run dev
 
-📸 Screenshots
+## 📸 Screenshots
+
 ![Screenshot (401)](https://github.com/user-attachments/assets/7d3388f3-265f-4cba-b68f-765349bf0ed4)
 
 
 
-🤝 Contributing
+## 🤝 Contributing
 Pull requests are welcome!
 For major changes, please open an issue first to discuss what you'd like to improve.
 
-📄 License
+## 📄 License
 This project is licensed under the MIT License.
 
 Happy coding! 💻✨
