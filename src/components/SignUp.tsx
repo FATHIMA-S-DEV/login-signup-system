@@ -5,6 +5,74 @@ interface SignUpProps {
   onToggleMode: () => void;
 }
 
+// API configuration
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// API service functions
+const authService = {
+  signUp: async (userData: {
+    fullName: string;
+    email: string;
+    password: string;
+    dateOfBirth: string;
+  }) => {
+    console.log('Sending signup request to:', `${API_BASE_URL}/auth/signup`);
+    console.log('Payload:', userData);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        throw new Error('Invalid response from server');
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Network or fetch error:', error);
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Unable to connect to server. Please check if the backend is running.');
+      }
+      throw error;
+    }
+  },
+
+  googleSignUp: async (googleToken: string) => {
+    const response = await fetch(`${API_BASE_URL}/auth/google-signup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token: googleToken }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Google sign up failed');
+    }
+
+    return data;
+  }
+};
+
 const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
   const [formData, setFormData] = useState({
     fullName: '',
@@ -16,6 +84,7 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
   const [signUpSuccess, setSignUpSuccess] = useState(false);
+  const [apiError, setApiError] = useState<string>('');
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -31,7 +100,13 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
     } else {
       const birthDate = new Date(formData.dateOfBirth);
       const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      
       if (age < 13) {
         newErrors.dateOfBirth = 'You must be at least 13 years old';
       }
@@ -55,52 +130,49 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const saveUserToLocalStorage = () => {
-    try {
-      const userData = {
-        fullName: formData.fullName.trim(),
-        email: formData.email.toLowerCase().trim(), // Normalize email
-        password: formData.password,
-        dateOfBirth: formData.dateOfBirth
-      };
-      
-      localStorage.setItem('userData', JSON.stringify(userData));
-      console.log('User data saved to localStorage:', userData);
-      return true;
-    } catch (error) {
-      console.error('Error saving user data to localStorage:', error);
-      return false;
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) return;
 
     setIsLoading(true);
+    setApiError('');
     
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Sign Up Data:', formData);
+    try {
+      const userData = {
+        fullName: formData.fullName.trim(),
+        email: formData.email.toLowerCase().trim(),
+        password: formData.password,
+        dateOfBirth: formData.dateOfBirth
+      };
+
+      console.log('Attempting to sign up with:', userData);
+      const response = await authService.signUp(userData);
       
-      // Save user data to localStorage
-      const saveSuccess = saveUserToLocalStorage();
+      console.log('Sign up successful:', response);
+      setSignUpSuccess(true);
       
-      if (saveSuccess) {
-        setIsLoading(false);
-        setSignUpSuccess(true);
-        
-        // Auto-redirect to sign in after 2 seconds
-        setTimeout(() => {
-          onToggleMode();
-        }, 2000);
-      } else {
-        setIsLoading(false);
-        // Handle save error (you could add error state here)
-        alert('Error saving user data. Please try again.');
+      // Store auth token in localStorage (only works in browser environment)
+      if (response.token && typeof window !== 'undefined' && window.localStorage) {
+        try {
+          localStorage.setItem('authToken', response.token);
+          console.log('Token stored in localStorage');
+        } catch (storageError) {
+          console.warn('Failed to store token in localStorage:', storageError);
+        }
       }
-    }, 1000);
+      
+      // Auto-redirect to sign in after 2 seconds
+      setTimeout(() => {
+        onToggleMode();
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Sign up error:', error);
+      setApiError(error instanceof Error ? error.message : 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,16 +182,60 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
       [name]: value
     }));
     
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+    if (apiError) {
+      setApiError('');
+    }
   };
 
-  const handleGoogleSignUp = () => {
-    console.log('Google Sign Up clicked');
-    // Implement Google OAuth here
-    alert('Google Sign Up would be implemented here');
+  const handleGoogleSignUp = async () => {
+    try {
+      setIsLoading(true);
+      setApiError('');
+      
+      if (typeof window !== 'undefined' && (window as any).google) {
+        const google = (window as any).google;
+        
+        google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          callback: async (response: any) => {
+            try {
+              const result = await authService.googleSignUp(response.credential);
+              
+              if (result.token && typeof window !== 'undefined' && window.localStorage) {
+                try {
+                  localStorage.setItem('authToken', result.token);
+                } catch (storageError) {
+                  console.warn('Failed to store token in localStorage:', storageError);
+                }
+              }
+              
+              setSignUpSuccess(true);
+              setTimeout(() => {
+                onToggleMode();
+              }, 2000);
+              
+            } catch (error) {
+              console.error('Google sign up error:', error);
+              setApiError(error instanceof Error ? error.message : 'Google sign up failed');
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        });
+        
+        google.accounts.id.prompt();
+      } else {
+        throw new Error('Google OAuth not initialized');
+      }
+      
+    } catch (error) {
+      console.error('Google sign up error:', error);
+      setApiError('Google sign up is not available at the moment');
+      setIsLoading(false);
+    }
   };
 
   if (signUpSuccess) {
@@ -135,7 +251,7 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
           </p>
         </div>
         <div className="flex justify-center">
-          <div className="loading-spinner"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       </div>
     );
@@ -149,6 +265,12 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
           Sign up to enjoy the feature of Revolutie
         </p>
       </div>
+
+      {apiError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-600">{apiError}</p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
@@ -165,6 +287,7 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
               errors.fullName ? 'border-red-300' : 'border-gray-300'
             }`}
             placeholder="Jonas Kahnwald"
+            disabled={isLoading}
           />
           {errors.fullName && (
             <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>
@@ -185,6 +308,7 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
               className={`w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors pr-10 ${
                 errors.dateOfBirth ? 'border-red-300' : 'border-gray-300'
               }`}
+              disabled={isLoading}
             />
             <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           </div>
@@ -207,6 +331,7 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
               errors.email ? 'border-red-300' : 'border-gray-300'
             }`}
             placeholder="jonas.kahnwald@gmail.com"
+            disabled={isLoading}
           />
           {errors.email && (
             <p className="mt-1 text-sm text-red-600">{errors.email}</p>
@@ -228,11 +353,13 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
                 errors.password ? 'border-red-300' : 'border-gray-300'
               }`}
               placeholder="Create a strong password"
+              disabled={isLoading}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed"
+              disabled={isLoading}
             >
               {showPassword ? (
                 <EyeOff className="h-4 w-4" />
@@ -253,7 +380,7 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
         >
           {isLoading ? (
             <div className="flex items-center space-x-2">
-              <div className="loading-spinner"></div>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
               <span>Creating account...</span>
             </div>
           ) : (
@@ -273,7 +400,8 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
         <button
           type="button"
           onClick={handleGoogleSignUp}
-          className="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+          disabled={isLoading}
+          className="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -281,7 +409,7 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
           </svg>
-          Continue with Google
+          {isLoading ? 'Please wait...' : 'Continue with Google'}
         </button>
       </form>
 
@@ -290,6 +418,7 @@ const SignUp: React.FC<SignUpProps> = ({ onToggleMode }) => {
         <button
           onClick={onToggleMode}
           className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors"
+          disabled={isLoading}
         >
           Sign in
         </button>
